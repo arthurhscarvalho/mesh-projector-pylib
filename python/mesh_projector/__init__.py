@@ -1,14 +1,14 @@
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 import numpy as np
 
 from .config import (
-    RenderConfig,
-    LightConfig,
-    Headlight,
     AmbientLight,
     DirectionalLight,
+    Headlight,
+    LightConfig,
     PointLight,
+    RenderConfig,
 )
 from .mesh_projector import MeshWrapper
 from .mesh_projector import project_to_images as _internal_project_to_images

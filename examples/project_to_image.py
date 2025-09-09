@@ -1,6 +1,7 @@
-import os
-import cv2
 import math
+import os
+
+import cv2
 import mesh_projector as mp
 
 if __name__ == "__main__":

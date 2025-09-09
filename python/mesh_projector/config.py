@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from enum import StrEnum
 from typing import Optional, Tuple, Union
+
+from pydantic import BaseModel
 
 
 class ShadingMode(StrEnum):
