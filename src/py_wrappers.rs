@@ -2,6 +2,7 @@ use mesh_projector::renderer::config::{LightComponents, LightSource, LightingCon
 use mesh_projector::types::color::Color;
 use mesh_projector::types::coordinate::Coordinate;
 use mesh_projector::types::mesh::{Scene, ShadingMode};
+use mesh_projector::types::orientation::Orientation;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use pyo3::types::PyDict;
@@ -94,6 +95,17 @@ pub fn parse_light_config<'py>(light_config: &Bound<'py, PyDict>) -> LightingCon
         },
     };
     lighting_config
+}
+
+pub fn parse_view_angles<'py>(view_angles: &Bound<'py, PyAny>) -> Vec<Orientation> {
+    // Expect a Python list/sequence of 3-tuples (roll, pitch, yaw) in radians
+    let angles: Vec<(f32, f32, f32)> = view_angles
+        .extract::<Vec<(f32, f32, f32)>>()
+        .expect("view_angles must be a list of 3-tuples of floats");
+    angles
+        .into_iter()
+        .map(|triple| Orientation::from(triple))
+        .collect()
 }
 
 #[pyclass]

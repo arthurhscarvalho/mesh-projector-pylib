@@ -10,7 +10,6 @@ use mesh_projector_lib::logging;
 use mesh_projector_lib::mesh_io;
 use mesh_projector_lib::projector;
 use mesh_projector_lib::projector::config::{PointCloudConfig, ProjectionConfig};
-use mesh_projector_lib::types::orientation::Orientation;
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyArray4};
 use py_wrappers::MeshWrapper;
 use pyo3::prelude::*;
@@ -55,9 +54,10 @@ fn read_mesh<'py>(
 }
 
 #[pyfunction]
-fn project_to_image<'py>(
+fn project_to_images<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
+    view_angles: &Bound<'py, pyo3::types::PyAny>,
     filtering_radius: u64,
     verbose: bool,
 ) -> PyResult<(
@@ -72,20 +72,8 @@ fn project_to_image<'py>(
     let mesh = &mesh_wrapper.mesh;
     let resolution = mesh_wrapper.resolution;
     let lighting_config = &mesh_wrapper.lighting_config;
-    // Set up view angles for cube projection
-    const PI: f32 = std::f32::consts::PI;
-    const VIEW_ANGLES: [[f32; 3]; 6] = [
-        [0.0, 0.0, 0.0],       // Front: Cam at +Z, looking -Z. No rotation.
-        [0.0, PI, 0.0],        // Back: Cam at -Z, looking +Z. Rotate 180 deg around Y.
-        [0.0, PI / 2.0, 0.0],  // Right: Cam at +X, looking -X. Rotate 90 deg around Y.
-        [0.0, -PI / 2.0, 0.0], // Left: Cam at -X, looking +X. Rotate -90 deg around Y.
-        [PI / 2.0, 0.0, 0.0],  // Top: Cam at +Y, looking -Y. Rotate 90 deg around X.
-        [-PI / 2.0, 0.0, 0.0], // Bottom: Cam at -Y, looking +Y. Rotate -90 deg around X.
-    ];
-    let view_angles = VIEW_ANGLES
-        .iter()
-        .map(|angle| Orientation::from(*angle))
-        .collect();
+    // Parse provided view angles from Python and convert to orientations
+    let view_angles = py_wrappers::parse_view_angles(view_angles);
     // Set up projection settings for cube projection
     let settings = ProjectionConfig {
         resolution,
@@ -148,7 +136,7 @@ fn project_to_point_cloud<'py>(
 fn mesh_projector(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MeshWrapper>()?;
     m.add_function(wrap_pyfunction!(read_mesh, m)?)?;
-    m.add_function(wrap_pyfunction!(project_to_image, m)?)?;
+    m.add_function(wrap_pyfunction!(project_to_images, m)?)?;
     m.add_function(wrap_pyfunction!(project_to_point_cloud, m)?)?;
     Ok(())
 }

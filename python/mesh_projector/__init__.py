@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import numpy as np
 
@@ -11,7 +11,7 @@ from .config import (
     PointLight,
 )
 from .mesh_projector import MeshWrapper
-from .mesh_projector import project_to_image as _internal_project_to_image
+from .mesh_projector import project_to_images as _internal_project_to_images
 from .mesh_projector import project_to_point_cloud as _internal_project_to_point_cloud
 from .mesh_projector import read_mesh as _internal_read_mesh
 
@@ -77,9 +77,10 @@ def read_mesh(
         raise RuntimeError(f"Rust backend failed during mesh reading: {e}")
 
 
-def project_to_image(
+def project_to_images(
     mesh: Mesh,
-    filtering: int = 0,
+    view_angles: List[Tuple[float, float, float]],
+    filtering_radius: int = 0,
     verbose: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -87,7 +88,8 @@ def project_to_image(
 
     Args:
         mesh (Mesh): The mesh object to project (as returned by `read_mesh`).
-        filtering (int, optional): Radius for outlier filtering in the depth map (default: 0, disables filtering).
+        view_angles (List[Tuple[float, float, float]]): List of view angles for the projections.
+        filtering_radius (int, optional): Radius for outlier filtering in the depth map (default: 0, disables filtering).
         verbose (bool, optional): If True, enables verbose logging from the Rust backend (default: False).
 
     Returns:
@@ -101,9 +103,10 @@ def project_to_image(
         RuntimeError: If the Rust backend fails during projection generation.
     """
     try:
-        return _internal_project_to_image(
+        return _internal_project_to_images(
             mesh._internal_mesh,
-            filtering,
+            view_angles,
+            filtering_radius,
             verbose,
         )
     except Exception as e:
@@ -112,7 +115,7 @@ def project_to_image(
 
 def project_to_point_cloud(
     mesh: Mesh,
-    point_cloud_density_factor: float = 1.0,
+    density_factor: float = 1.0,
     verbose: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -120,7 +123,7 @@ def project_to_point_cloud(
 
     Args:
         mesh (Mesh): The mesh object to sample from (as returned by `read_mesh`).
-        point_cloud_density_factor (float, optional): Controls the density of the sampled point cloud. Higher values produce more points (default: 1.0).
+        density_factor (float, optional): Controls the density of the sampled point cloud. Higher values produce more points (default: 1.0).
         verbose (bool, optional): If True, enables verbose logging from the Rust backend (default: False).
 
     Returns:
@@ -134,7 +137,7 @@ def project_to_point_cloud(
     try:
         return _internal_project_to_point_cloud(
             mesh._internal_mesh,
-            point_cloud_density_factor,
+            density_factor,
             verbose,
         )
     except Exception as e:
