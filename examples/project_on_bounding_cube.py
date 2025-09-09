@@ -9,8 +9,6 @@ if __name__ == "__main__":
     render_config = mp.RenderConfig(
         shading_mode="blinn_phong",
         resolution=4096,
-        flip_uv=True,
-        ignore_opacity=False,
         verbose=True,
     )
     # Lighting configuration
@@ -32,7 +30,7 @@ if __name__ == "__main__":
     ]
     # Read the mesh
     mesh = mp.read_mesh(
-        "assets/just_a_girl_C0-L5_deq_tri.obj",
+        "assets/nier/Untitled.obj",
         render_config,
         light_config,
     )
