@@ -147,7 +147,7 @@ def project_to_point_cloud(
 __all__ = [
     "Mesh",
     "read_mesh",
-    "project_to_image",
+    "project_to_images",
     "project_to_point_cloud",
     "RenderConfig",
     "LightConfig",
