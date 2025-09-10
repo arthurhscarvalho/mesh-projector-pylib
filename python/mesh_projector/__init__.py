@@ -7,7 +7,7 @@ from .config import (
     DirectionalLight,
     Headlight,
     LightConfig,
-    PointLight,
+    PointLights,
     RenderConfig,
 )
 from .mesh_projector import MeshWrapper
@@ -154,5 +154,5 @@ __all__ = [
     "Headlight",
     "AmbientLight",
     "DirectionalLight",
-    "PointLight",
+    "PointLights",
 ]

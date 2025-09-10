@@ -12,10 +12,15 @@ if __name__ == "__main__":
         verbose=True,
     )
     # Lighting configuration
-    light_config = mp.PointLight(
-        position=(0.0, 1.0, 1.0),
-        global_ambient=(0.5, 0.5, 0.5),
-        global_diffuse=(1.0, 1.0, 1.0),
+    light_config = mp.PointLights(
+        positions=[
+            (1.0, 1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+            (-1.0, 1.0, -1.0),
+            (1.0, 1.0, -1.0),
+        ],
+        global_ambient=(0.3, 0.3, 0.3),
+        global_diffuse=(0.7, 0.7, 0.7),
         global_specular=(0.0, 0.0, 0.0),
     )
     # View angles

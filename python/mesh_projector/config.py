@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from pydantic import BaseModel
 
@@ -45,9 +45,9 @@ class DirectionalLight(LightBase):
     direction: Tuple[float, float, float]
 
 
-class PointLight(LightBase):
+class PointLights(LightBase):
     mode: LightMode = LightMode.POINT
-    position: Tuple[float, float, float]
+    positions: List[Tuple[float, float, float]]
 
 
-LightConfig = Union[AmbientLight, Headlight, DirectionalLight, PointLight]
+LightConfig = Union[AmbientLight, Headlight, DirectionalLight, PointLights]

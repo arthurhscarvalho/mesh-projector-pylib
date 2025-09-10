@@ -79,10 +79,15 @@ pub fn parse_light_config<'py>(light_config: &Bound<'py, PyDict>) -> LightingCon
             LightSource::Directional(Coordinate::from(dir))
         }
         "point" => {
-            let pos: (f32, f32, f32) = lc_get("position")
-                .and_then(|v| v.extract::<(f32, f32, f32)>().ok())
-                .expect("Point light position must be provided");
-            LightSource::Point(Coordinate::from(pos))
+            // Expect a list of positions for multiple point lights
+            let positions: Vec<(f32, f32, f32)> = lc_get("positions")
+                .and_then(|v| v.extract::<Vec<(f32, f32, f32)>>().ok())
+                .expect("Point light positions must be provided as a list of 3-tuples");
+            let coords: Vec<Coordinate> = positions
+                .into_iter()
+                .map(|pos| Coordinate::from(pos))
+                .collect();
+            LightSource::Point(coords)
         }
         _ => LightSource::Headlight,
     };
