@@ -21,10 +21,8 @@ fn read_mesh<'py>(
     _py: Python<'py>,
     obj_path: &str,
     render_config: &Bound<'py, PyDict>,
-    light_config: &Bound<'py, PyDict>,
 ) -> PyResult<MeshWrapper> {
     let render_config = py_wrappers::parse_render_config(render_config);
-    let lighting_config = py_wrappers::parse_light_config(light_config);
     // Initialize logger (if requested)
     logging::atomic_init_logger(render_config.verbose)?;
     log::info!("Entering Rust read_mesh backend");
@@ -49,7 +47,6 @@ fn read_mesh<'py>(
     Ok(MeshWrapper {
         mesh,
         resolution: render_config.resolution,
-        lighting_config,
     })
 }
 
@@ -58,6 +55,7 @@ fn project_to_images<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
     view_angles: &Bound<'py, pyo3::types::PyAny>,
+    light_config: &Bound<'py, PyDict>,
     filtering_radius: u64,
     verbose: bool,
 ) -> PyResult<(
@@ -71,9 +69,9 @@ fn project_to_images<'py>(
     log::info!("Entering Rust project_to_image_on_bounding_cube backend");
     let mesh = &mesh_wrapper.mesh;
     let resolution = mesh_wrapper.resolution;
-    let lighting_config = &mesh_wrapper.lighting_config;
-    // Parse provided view angles from Python and convert to orientations
+    // Parse provided data from Python and convert to Rust types
     let view_angles = py_wrappers::parse_view_angles(view_angles);
+    let lighting_config = py_wrappers::parse_light_config(light_config);
     // Set up projection settings for cube projection
     let settings = ProjectionConfig {
         resolution,
@@ -103,6 +101,7 @@ fn project_to_images<'py>(
 fn project_to_point_cloud<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
+    light_config: &Bound<'py, PyDict>,
     point_cloud_density_factor: f32,
     verbose: bool,
 ) -> PyResult<(Py<PyArray2<f32>>, Py<PyArray2<u8>>)> {
@@ -111,7 +110,8 @@ fn project_to_point_cloud<'py>(
     log::info!("Entering Rust project_to_point_cloud backend");
     let mesh = &mesh_wrapper.mesh;
     let resolution = mesh_wrapper.resolution;
-    let lighting_config = &mesh_wrapper.lighting_config;
+    // Parse provided data from Python and convert to Rust types
+    let lighting_config = py_wrappers::parse_light_config(light_config);
     // Set up point cloud settings
     let settings = PointCloudConfig {
         resolution,

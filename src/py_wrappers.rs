@@ -117,5 +117,4 @@ pub fn parse_view_angles<'py>(view_angles: &Bound<'py, PyAny>) -> Vec<Orientatio
 pub struct MeshWrapper {
     pub mesh: Scene,
     pub resolution: u16,
-    pub lighting_config: LightingConfig,
 }

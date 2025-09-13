@@ -30,11 +30,7 @@ class Mesh:
         self._internal_mesh = mesh
 
 
-def read_mesh(
-    obj_path: str,
-    render_config: Optional[RenderConfig] = None,
-    light_config: Optional[LightConfig] = None,
-) -> Mesh:
+def read_mesh(obj_path: str, render_config: Optional[RenderConfig] = None) -> Mesh:
     """
     Load a 3D mesh from disk, automatically inferring the optimal loading mode based on the provided files.
 
@@ -47,13 +43,7 @@ def read_mesh(
 
     Args:
         obj_path (str): Path to the OBJ file containing mesh geometry.
-        shading_mode (Optional[Literal["vertex_color", "texture_mapped", "blinn_phong"]], optional): Mesh mode to use for loading the mesh (default: None).
-        resolution (int, optional): Resolution for mesh normalization and rasterization (default: 4096).
-            The mesh will be scaled to the resolution.
-            The default resolution is 4096, which results in 4096x4096 resolution for the bounding cube.
-        flip_uv (bool, optional): Whether to flip the V coordinate of UVs (default: True).
-        ignore_opacity (bool, optional): If True, ignore opacity/alpha in materials and textures (default: False).
-        verbose (bool, optional): If True, enable verbose logging from the Rust backend (default: False).
+        render_config (Optional[RenderConfig], optional): The rendering configuration to use for the mesh (default: None).
 
     Returns:
         Mesh: A Mesh object ready for projection and point cloud operations.
@@ -63,15 +53,8 @@ def read_mesh(
     """
     if render_config is None:
         render_config = RenderConfig()
-    if light_config is None:
-        # Default to a camera-attached headlight
-        light_config = Headlight()
     try:
-        internal_mesh = _internal_read_mesh(
-            obj_path,
-            render_config.model_dump(),
-            light_config.model_dump(),
-        )
+        internal_mesh = _internal_read_mesh(obj_path, render_config.model_dump())
         return Mesh(internal_mesh)
     except Exception as e:
         raise RuntimeError(f"Rust backend failed during mesh reading: {e}")
@@ -80,6 +63,7 @@ def read_mesh(
 def project_to_images(
     mesh: Mesh,
     view_angles: List[Tuple[float, float, float]],
+    light_config: Optional[LightConfig] = None,
     filtering_radius: int = 0,
     verbose: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -89,6 +73,7 @@ def project_to_images(
     Args:
         mesh (Mesh): The mesh object to project (as returned by `read_mesh`).
         view_angles (List[Tuple[float, float, float]]): List of view angles for the projections.
+        light_config (Optional[LightConfig], optional): The lighting configuration to use for the projections (default: None).
         filtering_radius (int, optional): Radius for outlier filtering in the depth map (default: 0, disables filtering).
         verbose (bool, optional): If True, enables verbose logging from the Rust backend (default: False).
 
@@ -102,10 +87,14 @@ def project_to_images(
     Raises:
         RuntimeError: If the Rust backend fails during projection generation.
     """
+    if light_config is None:
+        # Default to a camera-attached headlight
+        light_config = Headlight()
     try:
         return _internal_project_to_images(
             mesh._internal_mesh,
             view_angles,
+            light_config.model_dump(),
             filtering_radius,
             verbose,
         )
@@ -115,6 +104,7 @@ def project_to_images(
 
 def project_to_point_cloud(
     mesh: Mesh,
+    light_config: Optional[LightConfig] = None,
     density_factor: float = 1.0,
     verbose: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -123,6 +113,7 @@ def project_to_point_cloud(
 
     Args:
         mesh (Mesh): The mesh object to sample from (as returned by `read_mesh`).
+        light_config (Optional[LightConfig], optional): The lighting configuration to use for the point cloud (default: None).
         density_factor (float, optional): Controls the density of the sampled point cloud. Higher values produce more points (default: 1.0).
         verbose (bool, optional): If True, enables verbose logging from the Rust backend (default: False).
 
@@ -134,9 +125,13 @@ def project_to_point_cloud(
     Raises:
         RuntimeError: If the Rust backend fails during point cloud generation.
     """
+    if light_config is None:
+        # Default to a camera-attached headlight
+        light_config = Headlight()
     try:
         return _internal_project_to_point_cloud(
             mesh._internal_mesh,
+            light_config.model_dump(),
             density_factor,
             verbose,
         )

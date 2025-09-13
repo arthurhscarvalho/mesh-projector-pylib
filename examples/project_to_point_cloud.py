@@ -11,24 +11,19 @@ if __name__ == "__main__":
     # Lighting configuration
     light_config = mp.PointLights(
         positions=[
-            (1.0, 1.0, 1.0),
             (-1.0, 1.0, 1.0),
-            (-1.0, 1.0, -1.0),
-            (1.0, 1.0, -1.0),
+            (1.0, -1.0, -1.0),
         ],
-        global_ambient=(0.3, 0.3, 0.3),
-        global_diffuse=(0.7, 0.7, 0.7),
+        global_ambient=(0.5, 0.5, 0.5),
+        global_diffuse=(1.0, 1.0, 1.0),
         global_specular=(0.0, 0.0, 0.0),
     )
     # Read the mesh
-    mesh = mp.read_mesh(
-        "assets/nier/Untitled.obj",
-        render_config,
-        light_config,
-    )
+    mesh = mp.read_mesh("assets/just_a_girl_C0-L5_deq_tri.obj", render_config)
     # Project to images
     points, colors = mp.project_to_point_cloud(
         mesh,
+        light_config,
         density_factor=1.0,
     )
     # Save the point cloud
