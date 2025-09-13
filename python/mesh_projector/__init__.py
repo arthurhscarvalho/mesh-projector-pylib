@@ -9,6 +9,7 @@ from .config import (
     LightConfig,
     PointLights,
     RenderConfig,
+    ShadingMode,
 )
 from .mesh_projector import MeshWrapper
 from .mesh_projector import project_to_images as _internal_project_to_images
@@ -150,4 +151,5 @@ __all__ = [
     "AmbientLight",
     "DirectionalLight",
     "PointLights",
+    "ShadingMode",
 ]
