@@ -14,7 +14,7 @@ log = "0.4.27"
 colog = "1.3.0"
 
 [dependencies.mesh_projector]
-path = "/home/arthurc/Documents/mesh_projector/"
+path = "../mesh-projector-rs/"
 
 [dependencies.pyo3]
 version = "0.24.1"
