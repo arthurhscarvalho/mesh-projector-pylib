@@ -6,14 +6,7 @@ import mesh_projector as mp
 
 if __name__ == "__main__":
     render_config = mp.RenderConfig(verbose=True)  # Rendering configuration
-    projection_config = mp.ImageProjectionConfig(
-        verbose=True,
-        camera_config=mp.PerspectiveCamera(vertical_fov_degrees=60),
-        msaa_config=mp.MsaaConfig(sample_count=mp.MsaaSampleCount.X2),
-        ssao_config=mp.SsaoConfig(enabled=True),
-        background_config=mp.BackgroundConfig(alpha=0),
-        light_config=mp.PointLights(positions=[(-1.0, 1.0, 1.0), (1.0, -1.0, -1.0)]),
-    )  # Projection configuration
+    projection_config = mp.ImageProjectionConfig()  # Projection configuration
     # View angles
     PI = math.pi
     view_angles = [
