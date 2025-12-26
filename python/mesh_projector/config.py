@@ -24,12 +24,12 @@ class CameraProjection(StrEnum):
     PERSPECTIVE = "perspective"
 
 
-class PerspectiveProjection(BaseModel):
+class PerspectiveCamera(BaseModel):
     projection: Literal[CameraProjection.PERSPECTIVE] = CameraProjection.PERSPECTIVE
     vertical_fov_degrees: float
 
 
-class OrthographicProjection(BaseModel):
+class OrthographicCamera(BaseModel):
     projection: Literal[CameraProjection.ORTHOGRAPHIC] = CameraProjection.ORTHOGRAPHIC
 
 
@@ -92,13 +92,13 @@ class PointLights(LightBase):
 
 
 LightConfig = AmbientLight | Headlight | DirectionalLight | PointLights
-CameraConfig = OrthographicProjection | PerspectiveProjection
+CameraConfig = OrthographicCamera | PerspectiveCamera
 
 
 class ImageProjectionConfig(BaseModel):
     filtering_radius: int = 0
     light_config: LightConfig = Headlight()
-    camera_config: CameraConfig = OrthographicProjection()
+    camera_config: CameraConfig = OrthographicCamera()
     msaa_config: MsaaConfig = MsaaConfig()
     ssao_config: SsaoConfig = SsaoConfig()
     background_config: BackgroundConfig = BackgroundConfig()

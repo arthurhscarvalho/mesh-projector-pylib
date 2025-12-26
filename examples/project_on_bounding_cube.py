@@ -6,7 +6,14 @@ import mesh_projector as mp
 
 if __name__ == "__main__":
     render_config = mp.RenderConfig(verbose=True)  # Rendering configuration
-    projection_config = mp.ImageProjectionConfig(verbose=True)  # Projection configuration
+    projection_config = mp.ImageProjectionConfig(
+        verbose=True,
+        camera_config=mp.PerspectiveCamera(vertical_fov_degrees=60),
+        msaa_config=mp.MsaaConfig(sample_count=mp.MsaaSampleCount.X8),
+        ssao_config=mp.SsaoConfig(enabled=True),
+        background_config=mp.BackgroundConfig(alpha=0),
+        light_config=mp.PointLights(positions=[(-1.0, 1.0, 1.0), (1.0, -1.0, -1.0)]),
+    )  # Projection configuration
     # View angles
     PI = math.pi
     view_angles = [
@@ -26,9 +33,9 @@ if __name__ == "__main__":
     # Save the images
     os.makedirs("projections", exist_ok=True)
     for i, (p, d, n, o) in enumerate(zip(projections, depths, normals, occupancies)):
-        p = cv2.cvtColor(p, cv2.COLOR_RGB2BGR)
-        d = cv2.cvtColor(d, cv2.COLOR_RGB2BGR)
-        n = cv2.cvtColor(n, cv2.COLOR_RGB2BGR)
+        p = cv2.cvtColor(p, cv2.COLOR_RGBA2BGRA)
+        d = cv2.cvtColor(d, cv2.COLOR_RGBA2BGRA)
+        n = cv2.cvtColor(n, cv2.COLOR_RGBA2BGRA)
         o = cv2.cvtColor(o, cv2.COLOR_GRAY2BGR)
         cv2.imwrite(f"projections/projection_{i}.png", p)
         cv2.imwrite(f"projections/depth_map_{i}.png", d)
