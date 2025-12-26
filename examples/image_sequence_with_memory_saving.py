@@ -1,6 +1,6 @@
 import math
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 
 import cv2
@@ -10,7 +10,7 @@ import numpy as np
 
 if __name__ == "__main__":
     # Rendering configuration
-    render_config = mp.RenderConfig(resolution=1024, verbose=False)
+    render_config = mp.RenderConfig(resolution=1920, verbose=False)
     # Projection configuration
     projection_config = mp.ImageProjectionConfig(
         verbose=False,
@@ -30,23 +30,16 @@ if __name__ == "__main__":
     # Read the mesh
     mesh = mp.read_mesh("assets/just_a_girl_C0-L5_deq_tri.obj", render_config)
     # Project to images
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [
-            executor.submit(mp.project_to_images, mesh, projection_config, [view_angle])
-            for view_angle in view_angles
-        ]
-        future_to_index = {future: index for index, future in enumerate(futures)}
+    with ThreadPoolExecutor() as executor:
         # Save the images
         os.makedirs("projections", exist_ok=True)
-        pbar = tqdm(total=len(futures), desc="Commputing projections", colour="magenta")
-        for future in as_completed(futures):
-            # Get future index
-            idx = future_to_index[future]
-            # Check for possible exceptions
-            if future.exception():
-                raise future.exception()
-            # We will save only the projestion (the rendered mesh)
-            result = future.result()
+        pbar = tqdm(total=len(view_angles), desc="Commputing projections")
+        for idx, result in enumerate(
+            executor.map(
+                lambda va: mp.project_to_images(mesh, projection_config, [va]),
+                view_angles,
+            )
+        ):
             # Remove the first dimension, since it's only 1 image
             projection = np.squeeze(result[0], axis=0)
             # Convert from RGBA to BGRA (for cv2)
