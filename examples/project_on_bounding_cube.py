@@ -5,21 +5,8 @@ import cv2
 import mesh_projector as mp
 
 if __name__ == "__main__":
-    # Rendering configuration
-    render_config = mp.RenderConfig(
-        resolution=4096,
-        verbose=True,
-    )
-    # Lighting configuration
-    light_config = mp.PointLights(
-        positions=[
-            (-1.0, 1.0, 1.0),
-            (1.0, 1.0, -1.0),
-        ],
-        global_ambient=(0.6, 0.6, 0.6),
-        global_diffuse=(0.6, 0.6, 0.6),
-        global_specular=(0.0, 0.0, 0.0),
-    )
+    render_config = mp.RenderConfig(verbose=True)  # Rendering configuration
+    projection_config = mp.ImageProjectionConfig()  # Projection configuration
     # View angles
     PI = math.pi
     view_angles = [
@@ -34,14 +21,14 @@ if __name__ == "__main__":
     mesh = mp.read_mesh("assets/just_a_girl_C0-L5_deq_tri.obj", render_config)
     # Project to images
     projections, depths, normals, occupancies = mp.project_to_images(
-        mesh, view_angles, light_config
+        mesh, projection_config, view_angles
     )
     # Save the images
     os.makedirs("projections", exist_ok=True)
     for i, (p, d, n, o) in enumerate(zip(projections, depths, normals, occupancies)):
-        p = cv2.cvtColor(p, cv2.COLOR_RGB2BGR)
-        d = cv2.cvtColor(d, cv2.COLOR_RGB2BGR)
-        n = cv2.cvtColor(n, cv2.COLOR_RGB2BGR)
+        p = cv2.cvtColor(p, cv2.COLOR_RGBA2BGRA)
+        d = cv2.cvtColor(d, cv2.COLOR_RGBA2BGRA)
+        n = cv2.cvtColor(n, cv2.COLOR_RGBA2BGRA)
         o = cv2.cvtColor(o, cv2.COLOR_GRAY2BGR)
         cv2.imwrite(f"projections/projection_{i}.png", p)
         cv2.imwrite(f"projections/depth_map_{i}.png", d)

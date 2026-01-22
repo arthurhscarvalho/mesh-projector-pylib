@@ -1,11 +1,33 @@
-use mesh_projector::renderer::config::{LightComponents, LightSource, LightingConfig};
-use mesh_projector::types::color::Color;
-use mesh_projector::types::coordinate::Coordinate;
-use mesh_projector::types::mesh::{Scene, ShadingMode};
-use mesh_projector::types::orientation::Orientation;
+use mesh_projector_lib::projector::config::{
+    BackgroundConfig, CameraConfig, MsaaConfig, MsaaSampleCount, PerspectiveCameraConfig,
+    ProjectionType,
+};
+use mesh_projector_lib::renderer::config::{
+    LightComponents, LightSource, LightingConfig, SsaoConfig,
+};
+use mesh_projector_lib::types::color::Color;
+use mesh_projector_lib::types::coordinate::Coordinate;
+use mesh_projector_lib::types::mesh::{Scene, ShadingMode};
+use mesh_projector_lib::types::orientation::Orientation;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use pyo3::types::PyDict;
+
+pub struct ImageProjectionConfig {
+    pub filtering_radius: u64,
+    pub light_config: LightingConfig,
+    pub camera_config: CameraConfig,
+    pub msaa_config: MsaaConfig,
+    pub ssao_config: SsaoConfig,
+    pub background_config: BackgroundConfig,
+    pub verbose: bool,
+}
+
+pub struct PointCloudProjectionConfig {
+    pub density_factor: f32,
+    pub light_config: LightingConfig,
+    pub verbose: bool,
+}
 
 pub struct RenderConfig {
     pub shading_mode: Option<ShadingMode>,
@@ -100,6 +122,255 @@ pub fn parse_light_config<'py>(light_config: &Bound<'py, PyDict>) -> LightingCon
         },
     };
     lighting_config
+}
+
+pub fn parse_camera_config<'py>(camera_config: Option<&Bound<'py, PyDict>>) -> CameraConfig {
+    let mut cfg = CameraConfig::default();
+    if let Some(camera_cfg) = camera_config {
+        // Expect nested projection config (Pydantic model_dump), but fall back to flat keys.
+        let projection_value = camera_cfg.get_item("projection").ok().flatten();
+        // If nested, projection_value should be a dict with \"projection\" + params.
+        if let Some(projection_value) = projection_value {
+            if let Ok(projection_dict) = projection_value.downcast::<PyDict>() {
+                let projection_str = projection_dict
+                    .get_item("projection")
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.extract::<String>().ok());
+                cfg.projection = match projection_str.as_deref() {
+                    Some("perspective") => {
+                        let fov = projection_dict
+                            .get_item("vertical_fov_degrees")
+                            .ok()
+                            .flatten()
+                            .and_then(|v| v.extract::<f32>().ok())
+                            .unwrap_or(70.0);
+                        ProjectionType::Perspective(PerspectiveCameraConfig {
+                            vertical_fov_degrees: fov,
+                        })
+                    }
+                    _ => ProjectionType::Orthographic,
+                };
+            } else if let Ok(projection_str) = projection_value.extract::<String>() {
+                // Backward-compatible: accept a flat projection string.
+                cfg.projection = match projection_str.as_str() {
+                    "perspective" => {
+                        let fov = camera_cfg
+                            .get_item("vertical_fov_degrees")
+                            .ok()
+                            .flatten()
+                            .and_then(|v| v.extract::<f32>().ok())
+                            .unwrap_or(70.0);
+                        ProjectionType::Perspective(PerspectiveCameraConfig {
+                            vertical_fov_degrees: fov,
+                        })
+                    }
+                    _ => ProjectionType::Orthographic,
+                };
+            }
+        }
+    }
+    cfg
+}
+
+pub fn parse_msaa_config<'py>(msaa_config: Option<&Bound<'py, PyDict>>) -> MsaaConfig {
+    let mut cfg = MsaaConfig::default();
+    if let Some(msaa_cfg) = msaa_config {
+        let sample_str: Option<String> = msaa_cfg
+            .get_item("sample_count")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<String>().ok());
+        cfg.sample_count = match sample_str.as_deref() {
+            Some("x2") => MsaaSampleCount::X2,
+            Some("x4") => MsaaSampleCount::X4,
+            Some("x8") => MsaaSampleCount::X8,
+            _ => MsaaSampleCount::X1,
+        };
+    }
+    cfg
+}
+
+pub fn parse_ssao_config<'py>(ssao_config: Option<&Bound<'py, PyDict>>) -> SsaoConfig {
+    let mut cfg = SsaoConfig::default();
+    if let Some(ssao_cfg) = ssao_config {
+        if let Some(enabled) = ssao_cfg
+            .get_item("enabled")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<bool>().ok())
+        {
+            cfg.enabled = enabled;
+        }
+        if let Some(sample_radius) = ssao_cfg
+            .get_item("sample_radius")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<f32>().ok())
+        {
+            cfg.sample_radius = sample_radius;
+        }
+        if let Some(num_samples) = ssao_cfg
+            .get_item("num_samples")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<usize>().ok())
+        {
+            cfg.num_samples = num_samples;
+        }
+        if let Some(bias) = ssao_cfg
+            .get_item("bias")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<f32>().ok())
+        {
+            cfg.bias = bias;
+        }
+        if let Some(intensity) = ssao_cfg
+            .get_item("intensity")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<f32>().ok())
+        {
+            cfg.intensity = intensity;
+        }
+        if let Some(blur_radius) = ssao_cfg
+            .get_item("blur_radius")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<usize>().ok())
+        {
+            cfg.blur_radius = blur_radius;
+        }
+        if let Some(max_distance) = ssao_cfg
+            .get_item("max_distance")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<f32>().ok())
+        {
+            cfg.max_distance = max_distance;
+        }
+    }
+    cfg
+}
+
+pub fn parse_background_config<'py>(
+    background_config: Option<&Bound<'py, PyDict>>,
+) -> BackgroundConfig {
+    if let Some(bg_cfg) = background_config {
+        if let Some(color_value) = bg_cfg.get_item("color").ok().flatten() {
+            // Try to extract as RGBA (4-tuple) first
+            if let Ok((r, g, b, a)) = color_value.extract::<(f32, f32, f32, f32)>() {
+                let color = Color::from_srgb(r, g, b);
+                // Convert alpha from [0.0, 1.0] to [0, 255]
+                let alpha_u8 = (a * 255.0).round().clamp(0.0, 255.0) as u8;
+                return BackgroundConfig::Rgba(color, alpha_u8);
+            }
+            // Otherwise try RGB (3-tuple)
+            if let Ok((r, g, b)) = color_value.extract::<(f32, f32, f32)>() {
+                let color = Color::from_srgb(r, g, b);
+                return BackgroundConfig::Rgb(color);
+            }
+        }
+    }
+    // Default: RGB with white background
+    BackgroundConfig::default()
+}
+
+pub fn parse_image_projection_config<'py>(
+    projection_config: &Bound<'py, PyDict>,
+) -> ImageProjectionConfig {
+    let filtering_radius: u64 = projection_config
+        .get_item("filtering_radius")
+        .ok()
+        .flatten()
+        .and_then(|v| v.extract::<u64>().ok())
+        .expect("filtering_radius must be provided");
+    let verbose: bool = projection_config
+        .get_item("verbose")
+        .ok()
+        .flatten()
+        .and_then(|v| v.extract::<bool>().ok())
+        .unwrap_or(false);
+    let light_config_any = projection_config
+        .get_item("light_config")
+        .expect("light_config must be provided")
+        .expect("light_config must be provided");
+    let light_config_dict = light_config_any
+        .downcast_into::<PyDict>()
+        .expect("light_config must be provided as a dict");
+    let camera_config_any = projection_config
+        .get_item("camera_config")
+        .expect("camera_config must be provided")
+        .expect("camera_config must be provided");
+    let camera_config_dict = camera_config_any
+        .downcast_into::<PyDict>()
+        .expect("camera_config must be provided as a dict");
+    let msaa_config_any = projection_config
+        .get_item("msaa_config")
+        .expect("msaa_config must be provided")
+        .expect("msaa_config must be provided");
+    let msaa_config_dict = msaa_config_any
+        .downcast_into::<PyDict>()
+        .expect("msaa_config must be provided as a dict");
+    let ssao_config_any = projection_config
+        .get_item("ssao_config")
+        .expect("ssao_config must be provided")
+        .expect("ssao_config must be provided");
+    let ssao_config_dict = ssao_config_any
+        .downcast_into::<PyDict>()
+        .expect("ssao_config must be provided as a dict");
+    let background_config_any = projection_config
+        .get_item("background_config")
+        .expect("background_config must be provided")
+        .expect("background_config must be provided");
+    let background_config_dict = background_config_any
+        .downcast_into::<PyDict>()
+        .expect("background_config must be provided as a dict");
+    let light_config = parse_light_config(&light_config_dict);
+    let camera_config = parse_camera_config(Some(&camera_config_dict));
+    let msaa_config = parse_msaa_config(Some(&msaa_config_dict));
+    let ssao_config = parse_ssao_config(Some(&ssao_config_dict));
+    let background_config = parse_background_config(Some(&background_config_dict));
+    ImageProjectionConfig {
+        filtering_radius,
+        light_config,
+        camera_config,
+        msaa_config,
+        ssao_config,
+        background_config,
+        verbose,
+    }
+}
+
+pub fn parse_point_cloud_projection_config<'py>(
+    projection_config: &Bound<'py, PyDict>,
+) -> PointCloudProjectionConfig {
+    let density_factor: f32 = projection_config
+        .get_item("density_factor")
+        .ok()
+        .flatten()
+        .and_then(|v| v.extract::<f32>().ok())
+        .expect("density_factor must be provided");
+    let verbose: bool = projection_config
+        .get_item("verbose")
+        .ok()
+        .flatten()
+        .and_then(|v| v.extract::<bool>().ok())
+        .unwrap_or(false);
+    let light_config_any = projection_config
+        .get_item("light_config")
+        .expect("light_config must be provided")
+        .expect("light_config must be provided");
+    let light_config_dict = light_config_any
+        .downcast_into::<PyDict>()
+        .expect("light_config must be provided as a dict");
+    let light_config = parse_light_config(&light_config_dict);
+    PointCloudProjectionConfig {
+        density_factor,
+        light_config,
+        verbose,
+    }
 }
 
 pub fn parse_view_angles<'py>(view_angles: &Bound<'py, PyAny>) -> Vec<Orientation> {

@@ -54,10 +54,8 @@ fn read_mesh<'py>(
 fn project_to_images<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
+    projection_config: &Bound<'py, PyDict>,
     view_angles: &Bound<'py, pyo3::types::PyAny>,
-    light_config: &Bound<'py, PyDict>,
-    filtering_radius: u64,
-    verbose: bool,
 ) -> PyResult<(
     Py<PyArray4<u8>>,
     Py<PyArray3<u8>>,
@@ -65,18 +63,23 @@ fn project_to_images<'py>(
     Py<PyArray3<u8>>,
 )> {
     // Initialize logger if requested
-    logging::atomic_init_logger(verbose)?;
+    let proj_cfg = py_wrappers::parse_image_projection_config(projection_config);
+    logging::atomic_init_logger(proj_cfg.verbose)?;
     log::info!("Entering Rust project_to_image_on_bounding_cube backend");
     let mesh = &mesh_wrapper.mesh;
     let resolution = mesh_wrapper.resolution;
     // Parse provided data from Python and convert to Rust types
     let view_angles = py_wrappers::parse_view_angles(view_angles);
-    let lighting_config = py_wrappers::parse_light_config(light_config);
+    let lighting_config = proj_cfg.light_config;
     // Set up projection settings for cube projection
     let settings = ProjectionConfig {
         resolution,
         view_angles,
-        filtering_window_radius: filtering_radius,
+        filtering_window_radius: proj_cfg.filtering_radius,
+        camera: proj_cfg.camera_config,
+        msaa: proj_cfg.msaa_config,
+        ssao: proj_cfg.ssao_config,
+        background: proj_cfg.background_config,
     };
     // Call the backend to compute projections
     let image_batch =
@@ -101,21 +104,20 @@ fn project_to_images<'py>(
 fn project_to_point_cloud<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
-    light_config: &Bound<'py, PyDict>,
-    point_cloud_density_factor: f32,
-    verbose: bool,
+    projection_config: &Bound<'py, PyDict>,
 ) -> PyResult<(Py<PyArray2<f32>>, Py<PyArray2<u8>>)> {
     // Initialize logger if requested
-    logging::atomic_init_logger(verbose)?;
+    let proj_cfg = py_wrappers::parse_point_cloud_projection_config(projection_config);
+    logging::atomic_init_logger(proj_cfg.verbose)?;
     log::info!("Entering Rust project_to_point_cloud backend");
     let mesh = &mesh_wrapper.mesh;
     let resolution = mesh_wrapper.resolution;
     // Parse provided data from Python and convert to Rust types
-    let lighting_config = py_wrappers::parse_light_config(light_config);
+    let lighting_config = proj_cfg.light_config;
     // Set up point cloud settings
     let settings = PointCloudConfig {
         resolution,
-        point_cloud_density_factor,
+        point_cloud_density_factor: proj_cfg.density_factor,
     };
     // Call the backend to generate the point cloud
     let (points, colors) = py.allow_threads(|| {
