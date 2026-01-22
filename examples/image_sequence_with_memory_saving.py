@@ -17,7 +17,7 @@ if __name__ == "__main__":
         camera_config=mp.PerspectiveCamera(vertical_fov_degrees=60),
         msaa_config=mp.MsaaConfig(sample_count=mp.MsaaSampleCount.X8),
         ssao_config=mp.SsaoConfig(enabled=True),
-        background_config=mp.BackgroundConfig(alpha=255),
+        background_config=mp.BackgroundConfig(color=(1.0, 1.0, 1.0)),
         light_config=mp.PointLights(positions=[(-1.0, 1.0, 1.0), (1.0, -1.0, -1.0)]),
     )
     # View angles
