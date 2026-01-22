@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import List, Literal, Tuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, confloat
 
 
 class ShadingMode(StrEnum):
@@ -54,9 +54,14 @@ class SsaoConfig(BaseModel):
     max_distance: float = 2.0
 
 
+Channel = confloat(ge=0.0, le=1.0)
+Alpha = confloat(ge=0.0, le=1.0)
+RGB = Tuple[Channel, Channel, Channel]
+RGBA = Tuple[Channel, Channel, Channel, Alpha]
+
+
 class BackgroundConfig(BaseModel):
-    color: Tuple[float, float, float] = (1.0, 1.0, 1.0)
-    alpha: int = 255
+    color: RGB | RGBA = (1.0, 1.0, 1.0)
 
 
 class LightMode(StrEnum):

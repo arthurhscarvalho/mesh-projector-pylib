@@ -257,26 +257,24 @@ pub fn parse_ssao_config<'py>(ssao_config: Option<&Bound<'py, PyDict>>) -> SsaoC
 pub fn parse_background_config<'py>(
     background_config: Option<&Bound<'py, PyDict>>,
 ) -> BackgroundConfig {
-    let mut cfg = BackgroundConfig::default();
     if let Some(bg_cfg) = background_config {
-        if let Some(color) = bg_cfg
-            .get_item("color")
-            .ok()
-            .flatten()
-            .and_then(|v| v.extract::<(f32, f32, f32)>().ok())
-        {
-            cfg.color = Color::from_srgb(color.0, color.1, color.2);
-        }
-        if let Some(alpha) = bg_cfg
-            .get_item("alpha")
-            .ok()
-            .flatten()
-            .and_then(|v| v.extract::<u8>().ok())
-        {
-            cfg.alpha = alpha;
+        if let Some(color_value) = bg_cfg.get_item("color").ok().flatten() {
+            // Try to extract as RGBA (4-tuple) first
+            if let Ok((r, g, b, a)) = color_value.extract::<(f32, f32, f32, f32)>() {
+                let color = Color::from_srgb(r, g, b);
+                // Convert alpha from [0.0, 1.0] to [0, 255]
+                let alpha_u8 = (a * 255.0).round().clamp(0.0, 255.0) as u8;
+                return BackgroundConfig::Rgba(color, alpha_u8);
+            }
+            // Otherwise try RGB (3-tuple)
+            if let Ok((r, g, b)) = color_value.extract::<(f32, f32, f32)>() {
+                let color = Color::from_srgb(r, g, b);
+                return BackgroundConfig::Rgb(color);
+            }
         }
     }
-    cfg
+    // Default: RGB with white background
+    BackgroundConfig::default()
 }
 
 pub fn parse_image_projection_config<'py>(
