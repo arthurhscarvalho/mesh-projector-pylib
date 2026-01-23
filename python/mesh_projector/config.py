@@ -73,9 +73,9 @@ class LightMode(StrEnum):
 
 class LightBase(BaseModel):
     mode: str
-    global_ambient: Tuple[float, float, float] = (0.5, 0.5, 0.5)
-    global_diffuse: Tuple[float, float, float] = (0.5, 0.5, 0.5)
-    global_specular: Tuple[float, float, float] = (0.5, 0.5, 0.5)
+    global_ambient: RGB = (0.5, 0.5, 0.5)
+    global_diffuse: RGB = (0.5, 0.5, 0.5)
+    global_specular: RGB = (0.5, 0.5, 0.5)
 
 
 class AmbientLight(LightBase):
@@ -86,14 +86,18 @@ class Headlight(LightBase):
     mode: Literal[LightMode.HEADLIGHT] = LightMode.HEADLIGHT
 
 
+Abscissa = confloat(ge=-1.0, le=1.0)
+Coordinate = Tuple[Abscissa, Abscissa, Abscissa]
+
+
 class DirectionalLight(LightBase):
     mode: Literal[LightMode.DIRECTIONAL] = LightMode.DIRECTIONAL
-    direction: Tuple[float, float, float] = (0.0, 0.0, -1.0)
+    direction: Coordinate = (0.0, 0.0, -1.0)
 
 
 class PointLights(LightBase):
     mode: Literal[LightMode.POINT] = LightMode.POINT
-    positions: List[Tuple[float, float, float]] = [(-1.0, 1.0, 1.0), (1.0, -1.0, -1.0)]
+    positions: List[Coordinate] = [(-1.0, 1.0, 1.0), (1.0, -1.0, -1.0)]
 
 
 LightConfig = AmbientLight | Headlight | DirectionalLight | PointLights
