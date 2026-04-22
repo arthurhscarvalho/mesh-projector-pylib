@@ -1,14 +1,11 @@
-use mesh_projector_lib::projector::config::{
-    BackgroundConfig, CameraConfig, MsaaConfig, MsaaSampleCount, PerspectiveCameraConfig,
-    ProjectionType,
+use mesh_projector_core::config::{
+    BackgroundConfig, CameraConfig, LightComponents, LightSource, LightingConfig, MsaaConfig,
+    MsaaSampleCount, PerspectiveCameraConfig, ProjectionType, SsaoConfig,
 };
-use mesh_projector_lib::renderer::config::{
-    LightComponents, LightSource, LightingConfig, SsaoConfig,
-};
-use mesh_projector_lib::types::color::Color;
-use mesh_projector_lib::types::coordinate::Coordinate;
-use mesh_projector_lib::types::mesh::{Scene, ShadingMode};
-use mesh_projector_lib::types::orientation::Orientation;
+use mesh_projector_core::types::color::Color;
+use mesh_projector_core::types::coordinate::Coordinate;
+use mesh_projector_core::types::mesh::{Scene, ShadingMode};
+use mesh_projector_core::types::orientation::Orientation;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use pyo3::types::PyDict;
@@ -34,6 +31,7 @@ pub struct RenderConfig {
     pub resolution: u16,
     pub flip_uv: bool,
     pub ignore_opacity: bool,
+    pub use_gpu_renderer: bool,
     pub verbose: bool,
 }
 
@@ -52,6 +50,9 @@ pub fn parse_render_config<'py>(render_config: &Bound<'py, PyDict>) -> RenderCon
     let ignore_opacity: bool = rc_get("ignore_opacity")
         .and_then(|v| v.extract::<bool>().ok())
         .expect("Ignore opacity must be provided");
+    let use_gpu_renderer: bool = rc_get("use_gpu_renderer")
+        .and_then(|v| v.extract::<bool>().ok())
+        .unwrap_or(false);
     let verbose: bool = rc_get("verbose")
         .and_then(|v| v.extract::<bool>().ok())
         .expect("Verbose must be provided");
@@ -66,6 +67,7 @@ pub fn parse_render_config<'py>(render_config: &Bound<'py, PyDict>) -> RenderCon
         resolution,
         flip_uv,
         ignore_opacity,
+        use_gpu_renderer,
         verbose,
     }
 }
@@ -388,4 +390,5 @@ pub fn parse_view_angles<'py>(view_angles: &Bound<'py, PyAny>) -> Vec<Orientatio
 pub struct MeshWrapper {
     pub mesh: Scene,
     pub resolution: u16,
+    pub use_gpu_renderer: bool,
 }

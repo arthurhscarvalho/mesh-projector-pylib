@@ -16,6 +16,7 @@ class RenderConfig(BaseModel):
     resolution: int = 4096
     flip_uv: bool = True
     ignore_opacity: bool = False
+    use_gpu_renderer: bool = False
     verbose: bool = False
 
 

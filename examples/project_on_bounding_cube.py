@@ -5,8 +5,10 @@ import cv2
 import mesh_projector as mp
 
 if __name__ == "__main__":
-    render_config = mp.RenderConfig(verbose=True)  # Rendering configuration
-    projection_config = mp.ImageProjectionConfig()  # Projection configuration
+    # Rendering configuration
+    render_config = mp.RenderConfig(verbose=True, use_gpu_renderer=True)
+    # Projection configuration
+    projection_config = mp.ImageProjectionConfig()
     # View angles
     PI = math.pi
     view_angles = [

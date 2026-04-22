@@ -1,20 +1,80 @@
 extern crate log;
-extern crate mesh_projector as mesh_projector_lib;
+extern crate mesh_projector_core;
+extern crate mesh_projector_cpu;
+extern crate mesh_projector_wgpu;
 extern crate numpy;
 extern crate pyo3;
 extern crate rayon;
 
 mod py_wrappers;
 
-use mesh_projector_lib::logging;
-use mesh_projector_lib::mesh_io;
-use mesh_projector_lib::projector;
-use mesh_projector_lib::projector::config::{PointCloudConfig, ProjectionConfig};
+use mesh_projector_core::config::{LightingConfig, PointCloudConfig, ProjectionConfig};
+use mesh_projector_core::logging;
+use mesh_projector_core::mesh_io;
+use mesh_projector_core::types::image_batch::ImageBatch;
+use mesh_projector_core::types::mesh::Scene;
+use mesh_projector_wgpu::WgpuProjector;
+use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyArray4};
 use py_wrappers::MeshWrapper;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
+use std::sync::OnceLock;
+
+fn shared_wgpu_projector() -> Result<&'static WgpuProjector, String> {
+    static WGPU_PROJECTOR: OnceLock<Result<WgpuProjector, String>> = OnceLock::new();
+    WGPU_PROJECTOR
+        .get_or_init(|| WgpuProjector::new_blocking().map_err(|err| err.to_string()))
+        .as_ref()
+        .map_err(|err| err.clone())
+}
+
+fn project_to_image_with_renderer(
+    mesh: &Scene,
+    settings: &ProjectionConfig,
+    lighting_config: &LightingConfig,
+    use_gpu_renderer: bool,
+) -> ImageBatch {
+    if use_gpu_renderer {
+        match shared_wgpu_projector().and_then(|projector| {
+            projector
+                .project_to_image(mesh, settings, lighting_config)
+                .map_err(|err| err.to_string())
+        }) {
+            Ok(image_batch) => return image_batch,
+            Err(err) => {
+                log::warn!("wgpu image projection failed; falling back to CPU renderer: {err}");
+            }
+        }
+    }
+
+    mesh_projector_cpu::project_to_image(mesh, settings, lighting_config)
+}
+
+fn project_to_point_cloud_with_renderer(
+    mesh: &Scene,
+    settings: &PointCloudConfig,
+    lighting_config: &LightingConfig,
+    use_gpu_renderer: bool,
+) -> (Array2<f32>, Array2<u8>) {
+    if use_gpu_renderer {
+        match shared_wgpu_projector().and_then(|projector| {
+            projector
+                .project_to_point_cloud_by_sampling(mesh, settings, lighting_config)
+                .map_err(|err| err.to_string())
+        }) {
+            Ok(point_cloud) => return point_cloud,
+            Err(err) => {
+                log::warn!(
+                    "wgpu point cloud projection failed; falling back to CPU renderer: {err}"
+                );
+            }
+        }
+    }
+
+    mesh_projector_cpu::project_to_point_cloud(mesh, settings, lighting_config)
+}
 
 #[pyfunction]
 fn read_mesh<'py>(
@@ -47,6 +107,7 @@ fn read_mesh<'py>(
     Ok(MeshWrapper {
         mesh,
         resolution: render_config.resolution,
+        use_gpu_renderer: render_config.use_gpu_renderer,
     })
 }
 
@@ -82,8 +143,14 @@ fn project_to_images<'py>(
         background: proj_cfg.background_config,
     };
     // Call the backend to compute projections
-    let image_batch =
-        py.allow_threads(|| projector::project_to_image(&mesh, &settings, &lighting_config));
+    let image_batch = py.allow_threads(|| {
+        project_to_image_with_renderer(
+            mesh,
+            &settings,
+            &lighting_config,
+            mesh_wrapper.use_gpu_renderer,
+        )
+    });
     let (projections, depth_maps, normal_maps, occlusion_maps) = (
         image_batch.images,
         image_batch.depth_maps,
@@ -121,7 +188,12 @@ fn project_to_point_cloud<'py>(
     };
     // Call the backend to generate the point cloud
     let (points, colors) = py.allow_threads(|| {
-        projector::project_to_point_cloud_by_sampling(&mesh, &settings, &lighting_config)
+        project_to_point_cloud_with_renderer(
+            mesh,
+            &settings,
+            &lighting_config,
+            mesh_wrapper.use_gpu_renderer,
+        )
     });
     log::info!(
         "Back-end point cloud generation complete! Generated {} points",
