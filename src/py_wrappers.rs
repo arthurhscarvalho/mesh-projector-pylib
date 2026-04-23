@@ -2,6 +2,7 @@ use mesh_projector_core::config::{
     BackgroundConfig, CameraConfig, LightComponents, LightSource, LightingConfig, MsaaConfig,
     MsaaSampleCount, PerspectiveCameraConfig, ProjectionType, SsaoConfig,
 };
+use mesh_projector_core::mesh_io::MeshPreprocessing;
 use mesh_projector_core::types::color::Color;
 use mesh_projector_core::types::coordinate::Coordinate;
 use mesh_projector_core::types::mesh::{Scene, ShadingMode};
@@ -389,6 +390,62 @@ pub fn parse_view_angles<'py>(view_angles: &Bound<'py, PyAny>) -> Vec<Orientatio
 #[pyclass]
 pub struct MeshWrapper {
     pub mesh: Scene,
+    pub preprocessing: MeshPreprocessing,
     pub resolution: u16,
     pub use_gpu_renderer: bool,
+    pub is_preprocessed: bool,
+}
+
+#[pymethods]
+impl MeshWrapper {
+    pub fn get_transform(&self) -> MeshPreprocessingWrapper {
+        MeshPreprocessingWrapper {
+            preprocessing: self.preprocessing,
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Clone, Copy)]
+pub struct MeshPreprocessingWrapper {
+    pub preprocessing: MeshPreprocessing,
+}
+
+#[pymethods]
+impl MeshPreprocessingWrapper {
+    #[getter]
+    pub fn center(&self) -> [f32; 3] {
+        self.preprocessing.center
+    }
+
+    #[getter]
+    pub fn scale(&self) -> f32 {
+        self.preprocessing.scale
+    }
+
+    #[getter]
+    pub fn shift(&self) -> [f32; 3] {
+        self.preprocessing.shift
+    }
+
+    #[getter]
+    pub fn target_max_val(&self) -> f32 {
+        self.preprocessing.target_max_val
+    }
+
+    #[getter]
+    pub fn clamp_to_target_bounds(&self) -> bool {
+        self.preprocessing.clamp_to_target_bounds
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MeshPreprocessing(center={:?}, scale={}, shift={:?}, target_max_val={}, clamp_to_target_bounds={})",
+            self.preprocessing.center,
+            self.preprocessing.scale,
+            self.preprocessing.shift,
+            self.preprocessing.target_max_val,
+            self.preprocessing.clamp_to_target_bounds
+        )
+    }
 }

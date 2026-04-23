@@ -19,6 +19,9 @@ from .config import (
 )
 from .mesh import (
     Mesh,
+    MeshPreprocessing,
+    apply_preprocessing,
+    build_preprocessing,
     read_mesh,
 )
 from .projection import (
@@ -47,7 +50,10 @@ __all__ = [
     "PointCloudProjectionConfig",
     # Mesh
     "Mesh",
+    "MeshPreprocessing",
     "read_mesh",
+    "build_preprocessing",
+    "apply_preprocessing",
     # Projection
     "project_to_images",
     "project_to_point_cloud",

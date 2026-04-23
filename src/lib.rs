@@ -16,7 +16,7 @@ use mesh_projector_core::types::mesh::Scene;
 use mesh_projector_wgpu::WgpuProjector;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyArray4};
-use py_wrappers::MeshWrapper;
+use py_wrappers::{MeshPreprocessingWrapper, MeshWrapper};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
@@ -102,21 +102,72 @@ fn read_mesh<'py>(
             )));
         }
     };
+    let preprocessing = mesh_io::build_preprocessing_from_scene(&mesh, render_config.resolution);
     log::info!("Scene loaded successfully");
-    // Wrap the mesh in MeshWrapper
     Ok(MeshWrapper {
         mesh,
+        preprocessing,
         resolution: render_config.resolution,
         use_gpu_renderer: render_config.use_gpu_renderer,
+        is_preprocessed: false,
     })
 }
 
 #[pyfunction]
+fn build_preprocessing(mesh_wrapper: &MeshWrapper, resolution: u16) -> MeshPreprocessingWrapper {
+    MeshPreprocessingWrapper {
+        preprocessing: mesh_io::build_preprocessing_from_scene(&mesh_wrapper.mesh, resolution),
+    }
+}
+
+#[pyfunction]
+fn apply_preprocessing(
+    mesh_wrapper: &MeshWrapper,
+    preprocessing: &MeshPreprocessingWrapper,
+) -> MeshWrapper {
+    MeshWrapper {
+        mesh: mesh_io::preprocessed_scene(&mesh_wrapper.mesh, &preprocessing.preprocessing),
+        preprocessing: preprocessing.preprocessing,
+        resolution: mesh_wrapper.resolution,
+        use_gpu_renderer: mesh_wrapper.use_gpu_renderer,
+        is_preprocessed: true,
+    }
+}
+
+fn scene_for_projection<'a>(
+    mesh_wrapper: &'a MeshWrapper,
+    preprocessing: Option<&MeshPreprocessingWrapper>,
+) -> Result<std::borrow::Cow<'a, Scene>, PyErr> {
+    if let Some(preprocessing) = preprocessing {
+        if mesh_wrapper.is_preprocessed {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "Cannot apply preprocessing at projection time to an already preprocessed mesh. Use the raw mesh returned by read_mesh, or call project_* without a preprocessing argument.",
+            ));
+        }
+        return Ok(std::borrow::Cow::Owned(mesh_io::preprocessed_scene(
+            &mesh_wrapper.mesh,
+            &preprocessing.preprocessing,
+        )));
+    }
+
+    if mesh_wrapper.is_preprocessed {
+        Ok(std::borrow::Cow::Borrowed(&mesh_wrapper.mesh))
+    } else {
+        Ok(std::borrow::Cow::Owned(mesh_io::preprocessed_scene(
+            &mesh_wrapper.mesh,
+            &mesh_wrapper.preprocessing,
+        )))
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (mesh_wrapper, projection_config, view_angles, preprocessing=None))]
 fn project_to_images<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
     projection_config: &Bound<'py, PyDict>,
     view_angles: &Bound<'py, pyo3::types::PyAny>,
+    preprocessing: Option<&MeshPreprocessingWrapper>,
 ) -> PyResult<(
     Py<PyArray4<u8>>,
     Py<PyArray3<u8>>,
@@ -127,7 +178,7 @@ fn project_to_images<'py>(
     let proj_cfg = py_wrappers::parse_image_projection_config(projection_config);
     logging::atomic_init_logger(proj_cfg.verbose)?;
     log::info!("Entering Rust project_to_image_on_bounding_cube backend");
-    let mesh = &mesh_wrapper.mesh;
+    let mesh = scene_for_projection(mesh_wrapper, preprocessing)?;
     let resolution = mesh_wrapper.resolution;
     // Parse provided data from Python and convert to Rust types
     let view_angles = py_wrappers::parse_view_angles(view_angles);
@@ -145,7 +196,7 @@ fn project_to_images<'py>(
     // Call the backend to compute projections
     let image_batch = py.allow_threads(|| {
         project_to_image_with_renderer(
-            mesh,
+            &mesh,
             &settings,
             &lighting_config,
             mesh_wrapper.use_gpu_renderer,
@@ -168,16 +219,18 @@ fn project_to_images<'py>(
 }
 
 #[pyfunction]
+#[pyo3(signature = (mesh_wrapper, projection_config, preprocessing=None))]
 fn project_to_point_cloud<'py>(
     py: Python<'py>,
     mesh_wrapper: &MeshWrapper,
     projection_config: &Bound<'py, PyDict>,
+    preprocessing: Option<&MeshPreprocessingWrapper>,
 ) -> PyResult<(Py<PyArray2<f32>>, Py<PyArray2<u8>>)> {
     // Initialize logger if requested
     let proj_cfg = py_wrappers::parse_point_cloud_projection_config(projection_config);
     logging::atomic_init_logger(proj_cfg.verbose)?;
     log::info!("Entering Rust project_to_point_cloud backend");
-    let mesh = &mesh_wrapper.mesh;
+    let mesh = scene_for_projection(mesh_wrapper, preprocessing)?;
     let resolution = mesh_wrapper.resolution;
     // Parse provided data from Python and convert to Rust types
     let lighting_config = proj_cfg.light_config;
@@ -189,7 +242,7 @@ fn project_to_point_cloud<'py>(
     // Call the backend to generate the point cloud
     let (points, colors) = py.allow_threads(|| {
         project_to_point_cloud_with_renderer(
-            mesh,
+            &mesh,
             &settings,
             &lighting_config,
             mesh_wrapper.use_gpu_renderer,
@@ -209,7 +262,10 @@ fn project_to_point_cloud<'py>(
 #[pymodule]
 fn mesh_projector(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MeshWrapper>()?;
+    m.add_class::<MeshPreprocessingWrapper>()?;
     m.add_function(wrap_pyfunction!(read_mesh, m)?)?;
+    m.add_function(wrap_pyfunction!(build_preprocessing, m)?)?;
+    m.add_function(wrap_pyfunction!(apply_preprocessing, m)?)?;
     m.add_function(wrap_pyfunction!(project_to_images, m)?)?;
     m.add_function(wrap_pyfunction!(project_to_point_cloud, m)?)?;
     Ok(())

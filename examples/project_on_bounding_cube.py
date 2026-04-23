@@ -21,6 +21,8 @@ if __name__ == "__main__":
     ]
     # Read the mesh
     mesh = mp.read_mesh("assets/just_a_girl_C0-L5_deq_tri.obj", render_config)
+    preprocessing = mp.build_preprocessing(mesh, render_config)
+    mesh = mp.apply_preprocessing(mesh, preprocessing)
     # Project to images
     projections, depths, normals, occupancies = mp.project_to_images(
         mesh, projection_config, view_angles
