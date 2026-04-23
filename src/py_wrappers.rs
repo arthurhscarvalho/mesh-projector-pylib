@@ -2,7 +2,7 @@ use mesh_projector_core::config::{
     BackgroundConfig, CameraConfig, LightComponents, LightSource, LightingConfig, MsaaConfig,
     MsaaSampleCount, PerspectiveCameraConfig, ProjectionType, SsaoConfig,
 };
-use mesh_projector_core::mesh_io::MeshPreprocessing;
+use mesh_projector_core::preprocessing::MeshPreprocessing;
 use mesh_projector_core::types::color::Color;
 use mesh_projector_core::types::coordinate::Coordinate;
 use mesh_projector_core::types::mesh::{Scene, ShadingMode};

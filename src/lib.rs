@@ -11,6 +11,7 @@ mod py_wrappers;
 use mesh_projector_core::config::{LightingConfig, PointCloudConfig, ProjectionConfig};
 use mesh_projector_core::logging;
 use mesh_projector_core::mesh_io;
+use mesh_projector_core::preprocessing;
 use mesh_projector_core::types::image_batch::ImageBatch;
 use mesh_projector_core::types::mesh::Scene;
 use mesh_projector_wgpu::WgpuProjector;
@@ -102,7 +103,8 @@ fn read_mesh<'py>(
             )));
         }
     };
-    let preprocessing = mesh_io::build_preprocessing_from_scene(&mesh, render_config.resolution);
+    let preprocessing =
+        preprocessing::build_preprocessing_from_scene(&mesh, render_config.resolution);
     log::info!("Scene loaded successfully");
     Ok(MeshWrapper {
         mesh,
@@ -116,7 +118,7 @@ fn read_mesh<'py>(
 #[pyfunction]
 fn build_preprocessing(mesh_wrapper: &MeshWrapper, resolution: u16) -> MeshPreprocessingWrapper {
     MeshPreprocessingWrapper {
-        preprocessing: mesh_io::build_preprocessing_from_scene(&mesh_wrapper.mesh, resolution),
+        preprocessing: preprocessing::build_preprocessing_from_scene(&mesh_wrapper.mesh, resolution),
     }
 }
 
@@ -126,7 +128,7 @@ fn apply_preprocessing(
     preprocessing: &MeshPreprocessingWrapper,
 ) -> MeshWrapper {
     MeshWrapper {
-        mesh: mesh_io::preprocessed_scene(&mesh_wrapper.mesh, &preprocessing.preprocessing),
+        mesh: preprocessing::preprocessed_scene(&mesh_wrapper.mesh, &preprocessing.preprocessing),
         preprocessing: preprocessing.preprocessing,
         resolution: mesh_wrapper.resolution,
         use_gpu_renderer: mesh_wrapper.use_gpu_renderer,
@@ -144,7 +146,7 @@ fn scene_for_projection<'a>(
                 "Cannot apply preprocessing at projection time to an already preprocessed mesh. Use the raw mesh returned by read_mesh, or call project_* without a preprocessing argument.",
             ));
         }
-        return Ok(std::borrow::Cow::Owned(mesh_io::preprocessed_scene(
+        return Ok(std::borrow::Cow::Owned(preprocessing::preprocessed_scene(
             &mesh_wrapper.mesh,
             &preprocessing.preprocessing,
         )));
@@ -153,7 +155,7 @@ fn scene_for_projection<'a>(
     if mesh_wrapper.is_preprocessed {
         Ok(std::borrow::Cow::Borrowed(&mesh_wrapper.mesh))
     } else {
-        Ok(std::borrow::Cow::Owned(mesh_io::preprocessed_scene(
+        Ok(std::borrow::Cow::Owned(preprocessing::preprocessed_scene(
             &mesh_wrapper.mesh,
             &mesh_wrapper.preprocessing,
         )))
