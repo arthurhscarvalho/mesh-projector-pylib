@@ -16,6 +16,7 @@ class RenderConfig(BaseModel):
     resolution: int = 4096
     flip_uv: bool = True
     ignore_opacity: bool = False
+    use_gpu_renderer: bool = False
     verbose: bool = False
 
 
@@ -61,7 +62,7 @@ RGBA = Tuple[Channel, Channel, Channel, Alpha]
 
 
 class BackgroundConfig(BaseModel):
-    color: RGB | RGBA = (1.0, 1.0, 1.0)
+    color: RGBA = (1.0, 1.0, 1.0, 1.0)
 
 
 class LightMode(StrEnum):

@@ -1,14 +1,12 @@
-use mesh_projector_lib::projector::config::{
-    BackgroundConfig, CameraConfig, MsaaConfig, MsaaSampleCount, PerspectiveCameraConfig,
-    ProjectionType,
+use mesh_projector_core::config::{
+    BackgroundConfig, CameraConfig, LightComponents, LightSource, LightingConfig, MsaaConfig,
+    MsaaSampleCount, PerspectiveCameraConfig, ProjectionType, SsaoConfig,
 };
-use mesh_projector_lib::renderer::config::{
-    LightComponents, LightSource, LightingConfig, SsaoConfig,
-};
-use mesh_projector_lib::types::color::Color;
-use mesh_projector_lib::types::coordinate::Coordinate;
-use mesh_projector_lib::types::mesh::{Scene, ShadingMode};
-use mesh_projector_lib::types::orientation::Orientation;
+use mesh_projector_core::preprocessing::MeshPreprocessing;
+use mesh_projector_core::types::color::Color;
+use mesh_projector_core::types::coordinate::Coordinate;
+use mesh_projector_core::types::mesh::{Scene, ShadingMode};
+use mesh_projector_core::types::orientation::Orientation;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use pyo3::types::PyDict;
@@ -34,6 +32,7 @@ pub struct RenderConfig {
     pub resolution: u16,
     pub flip_uv: bool,
     pub ignore_opacity: bool,
+    pub use_gpu_renderer: bool,
     pub verbose: bool,
 }
 
@@ -52,6 +51,9 @@ pub fn parse_render_config<'py>(render_config: &Bound<'py, PyDict>) -> RenderCon
     let ignore_opacity: bool = rc_get("ignore_opacity")
         .and_then(|v| v.extract::<bool>().ok())
         .expect("Ignore opacity must be provided");
+    let use_gpu_renderer: bool = rc_get("use_gpu_renderer")
+        .and_then(|v| v.extract::<bool>().ok())
+        .unwrap_or(false);
     let verbose: bool = rc_get("verbose")
         .and_then(|v| v.extract::<bool>().ok())
         .expect("Verbose must be provided");
@@ -66,6 +68,7 @@ pub fn parse_render_config<'py>(render_config: &Bound<'py, PyDict>) -> RenderCon
         resolution,
         flip_uv,
         ignore_opacity,
+        use_gpu_renderer,
         verbose,
     }
 }
@@ -259,21 +262,14 @@ pub fn parse_background_config<'py>(
 ) -> BackgroundConfig {
     if let Some(bg_cfg) = background_config {
         if let Some(color_value) = bg_cfg.get_item("color").ok().flatten() {
-            // Try to extract as RGBA (4-tuple) first
-            if let Ok((r, g, b, a)) = color_value.extract::<(f32, f32, f32, f32)>() {
-                let color = Color::from_srgb(r, g, b);
-                // Convert alpha from [0.0, 1.0] to [0, 255]
-                let alpha_u8 = (a * 255.0).round().clamp(0.0, 255.0) as u8;
-                return BackgroundConfig::Rgba(color, alpha_u8);
-            }
-            // Otherwise try RGB (3-tuple)
-            if let Ok((r, g, b)) = color_value.extract::<(f32, f32, f32)>() {
-                let color = Color::from_srgb(r, g, b);
-                return BackgroundConfig::Rgb(color);
-            }
+            let (r, g, b, a) = color_value
+                .extract::<(f32, f32, f32, f32)>()
+                .expect("Background color must be provided as an RGBA 4-tuple");
+            let color = Color::from_srgb(r, g, b);
+            let alpha_u8 = (a * 255.0).round().clamp(0.0, 255.0) as u8;
+            return BackgroundConfig::rgba(color, alpha_u8);
         }
     }
-    // Default: RGB with white background
     BackgroundConfig::default()
 }
 
@@ -387,5 +383,62 @@ pub fn parse_view_angles<'py>(view_angles: &Bound<'py, PyAny>) -> Vec<Orientatio
 #[pyclass]
 pub struct MeshWrapper {
     pub mesh: Scene,
+    pub preprocessing: MeshPreprocessing,
     pub resolution: u16,
+    pub use_gpu_renderer: bool,
+    pub is_preprocessed: bool,
+}
+
+#[pymethods]
+impl MeshWrapper {
+    pub fn get_transform(&self) -> MeshPreprocessingWrapper {
+        MeshPreprocessingWrapper {
+            preprocessing: self.preprocessing,
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Clone, Copy)]
+pub struct MeshPreprocessingWrapper {
+    pub preprocessing: MeshPreprocessing,
+}
+
+#[pymethods]
+impl MeshPreprocessingWrapper {
+    #[getter]
+    pub fn center(&self) -> [f32; 3] {
+        self.preprocessing.center
+    }
+
+    #[getter]
+    pub fn scale(&self) -> f32 {
+        self.preprocessing.scale
+    }
+
+    #[getter]
+    pub fn shift(&self) -> [f32; 3] {
+        self.preprocessing.shift
+    }
+
+    #[getter]
+    pub fn target_max_val(&self) -> f32 {
+        self.preprocessing.target_max_val
+    }
+
+    #[getter]
+    pub fn clamp_to_target_bounds(&self) -> bool {
+        self.preprocessing.clamp_to_target_bounds
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MeshPreprocessing(center={:?}, scale={}, shift={:?}, target_max_val={}, clamp_to_target_bounds={})",
+            self.preprocessing.center,
+            self.preprocessing.scale,
+            self.preprocessing.shift,
+            self.preprocessing.target_max_val,
+            self.preprocessing.clamp_to_target_bounds
+        )
+    }
 }

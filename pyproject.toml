@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
+requires = ["maturin>=1.13.1,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -8,10 +8,25 @@ version = "1.0.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
-dependencies = ["numpy>=1.26", "toml>=0.10.0"]
+dependencies = [
+    "numpy>=2.2.4",
+    "pydantic>=2.11.7",
+    "toml>=0.10.2",
+]
 
 [project.urls]
 repository = "https://github.com/arthurhscarvalho/mesh-projector-pylib"
 
 [tool.maturin]
 python-source = "python"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.13.1",
+    "patchelf>=0.17.2.2",
+    "ruff>=0.11.3",
+]
+examples = [
+    "open3d>=0.19.0",
+    "opencv-python>=4.11.0.86",
+]
