@@ -262,21 +262,14 @@ pub fn parse_background_config<'py>(
 ) -> BackgroundConfig {
     if let Some(bg_cfg) = background_config {
         if let Some(color_value) = bg_cfg.get_item("color").ok().flatten() {
-            // Try to extract as RGBA (4-tuple) first
-            if let Ok((r, g, b, a)) = color_value.extract::<(f32, f32, f32, f32)>() {
-                let color = Color::from_srgb(r, g, b);
-                // Convert alpha from [0.0, 1.0] to [0, 255]
-                let alpha_u8 = (a * 255.0).round().clamp(0.0, 255.0) as u8;
-                return BackgroundConfig::Rgba(color, alpha_u8);
-            }
-            // Otherwise try RGB (3-tuple)
-            if let Ok((r, g, b)) = color_value.extract::<(f32, f32, f32)>() {
-                let color = Color::from_srgb(r, g, b);
-                return BackgroundConfig::Rgb(color);
-            }
+            let (r, g, b, a) = color_value
+                .extract::<(f32, f32, f32, f32)>()
+                .expect("Background color must be provided as an RGBA 4-tuple");
+            let color = Color::from_srgb(r, g, b);
+            let alpha_u8 = (a * 255.0).round().clamp(0.0, 255.0) as u8;
+            return BackgroundConfig::rgba(color, alpha_u8);
         }
     }
-    // Default: RGB with white background
     BackgroundConfig::default()
 }
 

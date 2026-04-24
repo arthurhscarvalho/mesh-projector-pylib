@@ -62,7 +62,7 @@ RGBA = Tuple[Channel, Channel, Channel, Alpha]
 
 
 class BackgroundConfig(BaseModel):
-    color: RGB | RGBA = (1.0, 1.0, 1.0)
+    color: RGBA = (1.0, 1.0, 1.0, 1.0)
 
 
 class LightMode(StrEnum):

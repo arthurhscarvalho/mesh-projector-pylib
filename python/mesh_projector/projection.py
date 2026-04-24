@@ -25,10 +25,10 @@ def project_to_images(
 
     Returns:
         Tuple[NDArray, NDArray, NDArray, NDArray]:
-            - projections: (6, H, W, 3) uint8 RGB images for each cube face
-            - depth_maps: (6, H, W) uint8 depth maps for each face
-            - normal_maps: (6, H, W, 3) uint8 normal maps for each face
-            - occlusion_maps: (6, H, W) uint8 occupancy maps for each face (255=mesh, 0=background)
+            - projections: (6, H, W, 4) read-only uint8 RGBA images for each cube face
+            - depth_maps: (6, H, W) read-only uint8 depth maps for each face
+            - normal_maps: (6, H, W, 4) read-only uint8 normal maps for each face; use normal_maps[..., :3] for XYZ/RGB data
+            - occlusion_maps: (6, H, W) read-only uint8 occupancy maps for each face (255=mesh, 0=background)
 
     Raises:
         RuntimeError: If the Rust backend fails during projection generation.

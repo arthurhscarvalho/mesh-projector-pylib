@@ -1,5 +1,6 @@
 import math
 import os
+import time
 
 import cv2
 import mesh_projector as mp
@@ -24,16 +25,17 @@ if __name__ == "__main__":
     preprocessing = mp.build_preprocessing(mesh, render_config)
     mesh = mp.apply_preprocessing(mesh, preprocessing)
     # Project to images
+    t0 = time.time()
     projections, depths, normals, occupancies = mp.project_to_images(
         mesh, projection_config, view_angles
     )
+    t1 = time.time()
+    print("Time:", t1 - t0)
     # Save the images
     os.makedirs("projections", exist_ok=True)
     for i, (p, d, n, o) in enumerate(zip(projections, depths, normals, occupancies)):
         p = cv2.cvtColor(p, cv2.COLOR_RGBA2BGRA)
-        d = cv2.cvtColor(d, cv2.COLOR_RGBA2BGRA)
         n = cv2.cvtColor(n, cv2.COLOR_RGBA2BGRA)
-        o = cv2.cvtColor(o, cv2.COLOR_GRAY2BGR)
         cv2.imwrite(f"projections/projection_{i}.png", p)
         cv2.imwrite(f"projections/depth_map_{i}.png", d)
         cv2.imwrite(f"projections/normal_map_{i}.png", n)
