@@ -8,16 +8,17 @@ extern crate rayon;
 
 mod py_wrappers;
 
-use mesh_projector_core::config::{LightingConfig, PointCloudConfig, ProjectionConfig};
+use mesh_projector_core::config::{PointCloudConfig, ProjectionConfig};
 use mesh_projector_core::logging;
 use mesh_projector_core::mesh_io;
 use mesh_projector_core::preprocessing;
 use mesh_projector_core::types::image_batch::ImageBatch;
 use mesh_projector_core::types::mesh::Scene;
+use mesh_projector_wgpu::WgpuOwnedMappedPointCloudReadback;
 use mesh_projector_wgpu::{
     PlaneView, WgpuOutputSelection, WgpuOwnedMappedImageReadback, WgpuProjector,
 };
-use ndarray::{Array2, Array4, ArrayView3, ArrayView4, ShapeBuilder};
+use ndarray::{Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ShapeBuilder};
 use numpy::{IntoPyArray, PyArray2, PyArray3, PyArray4, PyArrayMethods};
 use py_wrappers::{MeshPreprocessingWrapper, MeshWrapper};
 use pyo3::prelude::*;
@@ -38,6 +39,11 @@ struct PyProjectionReadbackOwner {
     readback: WgpuOwnedMappedImageReadback,
 }
 
+#[pyclass(unsendable)]
+struct PyPointCloudReadbackOwner {
+    readback: WgpuOwnedMappedPointCloudReadback,
+}
+
 #[derive(Clone, Copy)]
 struct BorrowedPlaneMeta {
     ptr: *const u8,
@@ -55,6 +61,29 @@ fn plane_meta(plane: PlaneView<'_>, expected_bytes_per_view: usize) -> PyResult<
         return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
             "wgpu readback plane stride is too small: expected at least {} bytes, got {}",
             expected_bytes_per_view, plane.stride_bytes
+        )));
+    }
+    Ok(BorrowedPlaneMeta {
+        ptr: plane.bytes.as_ptr(),
+        stride_bytes: plane.stride_bytes,
+    })
+}
+
+fn strided_plane_meta(
+    plane: PlaneView<'_>,
+    expected_bytes: usize,
+    expected_stride_bytes: usize,
+) -> PyResult<BorrowedPlaneMeta> {
+    if plane.bytes_per_view < expected_bytes {
+        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "wgpu readback plane is too small: expected at least {} bytes, got {}",
+            expected_bytes, plane.bytes_per_view
+        )));
+    }
+    if plane.stride_bytes < expected_stride_bytes {
+        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "wgpu readback plane stride is too small: expected at least {} bytes, got {}",
+            expected_stride_bytes, plane.stride_bytes
         )));
     }
     Ok(BorrowedPlaneMeta {
@@ -91,6 +120,43 @@ fn make_array3_readonly<'py>(
     let view = unsafe { ArrayView3::from_shape_ptr(shape, meta.ptr) };
     let array = unsafe {
         PyArray3::borrow_from_array(&view, owner.clone_ref(py).into_bound(py).into_any())
+    };
+    array.readwrite().make_nonwriteable();
+    array.into()
+}
+
+fn make_array2_f32_readonly<'py>(
+    py: Python<'py>,
+    meta: BorrowedPlaneMeta,
+    owner: &Py<PyPointCloudReadbackOwner>,
+    rows: usize,
+) -> PyResult<Py<PyArray2<f32>>> {
+    let element_size = std::mem::size_of::<f32>();
+    if meta.stride_bytes % element_size != 0 {
+        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            "wgpu readback position stride is not f32-aligned: {} bytes",
+            meta.stride_bytes
+        )));
+    }
+    let shape = (rows, 3).strides((meta.stride_bytes / element_size, 1));
+    let view = unsafe { ArrayView2::from_shape_ptr(shape, meta.ptr.cast::<f32>()) };
+    let array = unsafe {
+        PyArray2::borrow_from_array(&view, owner.clone_ref(py).into_bound(py).into_any())
+    };
+    array.readwrite().make_nonwriteable();
+    Ok(array.into())
+}
+
+fn make_array2_u8_readonly<'py>(
+    py: Python<'py>,
+    meta: BorrowedPlaneMeta,
+    owner: &Py<PyPointCloudReadbackOwner>,
+    rows: usize,
+) -> Py<PyArray2<u8>> {
+    let shape = (rows, 3).strides((meta.stride_bytes, 1));
+    let view = unsafe { ArrayView2::from_shape_ptr(shape, meta.ptr) };
+    let array = unsafe {
+        PyArray2::borrow_from_array(&view, owner.clone_ref(py).into_bound(py).into_any())
     };
     array.readwrite().make_nonwriteable();
     array.into()
@@ -158,6 +224,41 @@ fn wgpu_readback_into_numpy<'py>(
     ))
 }
 
+fn wgpu_point_cloud_readback_into_numpy<'py>(
+    py: Python<'py>,
+    readback: WgpuOwnedMappedPointCloudReadback,
+) -> PyResult<(Py<PyArray2<f32>>, Py<PyArray2<u8>>)> {
+    let num_points = readback.num_points;
+    if num_points == 0 {
+        let positions = Array2::<f32>::zeros((0, 3)).into_pyarray(py);
+        positions.readwrite().make_nonwriteable();
+        let colors = Array2::<u8>::zeros((0, 3)).into_pyarray(py);
+        colors.readwrite().make_nonwriteable();
+        return Ok((positions.into(), colors.into()));
+    }
+
+    let positions_bytes = num_points * std::mem::size_of::<[f32; 4]>();
+    let colors_bytes = num_points * std::mem::size_of::<u32>();
+    let owner = Py::new(py, PyPointCloudReadbackOwner { readback })?;
+    let (positions, colors) = {
+        let borrowed = owner.bind(py).borrow();
+        let readback = &borrowed.readback;
+        (
+            strided_plane_meta(
+                readback.positions(),
+                positions_bytes,
+                std::mem::size_of::<[f32; 4]>(),
+            )?,
+            strided_plane_meta(readback.colors(), colors_bytes, std::mem::size_of::<u32>())?,
+        )
+    };
+
+    Ok((
+        make_array2_f32_readonly(py, positions, &owner, num_points)?,
+        make_array2_u8_readonly(py, colors, &owner, num_points),
+    ))
+}
+
 fn make_owned_array4_readonly<'py>(py: Python<'py>, array: Array4<u8>) -> Py<PyArray4<u8>> {
     let array = array.into_pyarray(py);
     array.readwrite().make_nonwriteable();
@@ -188,30 +289,6 @@ fn image_batch_into_rgba_numpy<'py>(
         make_owned_array4_readonly(py, image_batch.normal_maps),
         make_owned_array3_readonly(py, image_batch.occupancy_maps),
     )
-}
-
-fn project_to_point_cloud_with_renderer(
-    mesh: &Scene,
-    settings: &PointCloudConfig,
-    lighting_config: &LightingConfig,
-    use_gpu_renderer: bool,
-) -> (Array2<f32>, Array2<u8>) {
-    if use_gpu_renderer {
-        match shared_wgpu_projector().and_then(|projector| {
-            projector
-                .project_to_point_cloud_by_sampling(mesh, settings, lighting_config)
-                .map_err(|err| err.to_string())
-        }) {
-            Ok(point_cloud) => return point_cloud,
-            Err(err) => {
-                log::warn!(
-                    "wgpu point cloud projection failed; falling back to CPU renderer: {err}"
-                );
-            }
-        }
-    }
-
-    mesh_projector_cpu::project_to_point_cloud(mesh, settings, lighting_config)
 }
 
 #[pyfunction]
@@ -392,14 +469,35 @@ fn project_to_point_cloud<'py>(
         resolution,
         point_cloud_density_factor: proj_cfg.density_factor,
     };
-    // Call the backend to generate the point cloud
+    if mesh_wrapper.use_gpu_renderer {
+        let gpu_result = py.allow_threads(|| {
+            shared_wgpu_projector().and_then(|projector| {
+                projector
+                    .project_to_owned_point_cloud_readback(&mesh, &settings, &lighting_config)
+                    .map_err(|err| err.to_string())
+            })
+        });
+
+        match gpu_result {
+            Ok((readback, timings)) => {
+                log::info!(
+                    "Point-cloud generation complete via zero-copy wgpu readback: total={:.3?}, readback={:.3?}, map_wait={:.3?}",
+                    timings.total,
+                    timings.readback,
+                    timings.map_wait
+                );
+                return wgpu_point_cloud_readback_into_numpy(py, readback);
+            }
+            Err(err) => {
+                log::warn!(
+                    "wgpu point cloud projection failed; falling back to CPU renderer: {err}"
+                );
+            }
+        }
+    }
+
     let (points, colors) = py.allow_threads(|| {
-        project_to_point_cloud_with_renderer(
-            &mesh,
-            &settings,
-            &lighting_config,
-            mesh_wrapper.use_gpu_renderer,
-        )
+        mesh_projector_cpu::project_to_point_cloud(&mesh, &settings, &lighting_config)
     });
     log::info!(
         "Back-end point cloud generation complete! Generated {} points",

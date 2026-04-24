@@ -49,17 +49,27 @@ def directions_to_view_angles(
 
 if __name__ == "__main__":
     # Rendering configuration
-    render_config = mp.RenderConfig(verbose=True)
+    render_config = mp.RenderConfig(verbose=True, use_gpu_renderer=True)
     # Projection configuration
-    projection_config = mp.ImageProjectionConfig(safety_area=False)
+    projection_config = mp.ImageProjectionConfig(
+        background_config=mp.BackgroundConfig(color=(1.0, 1.0, 1.0, 1.0))
+    )
     # View angles
     view_angles = directions_to_view_angles(icosahedron_face_normals())
     # Read the mesh
     mesh = mp.read_mesh("assets/just_a_girl_C0-L5_deq_tri.obj", render_config)
+    preprocessing = mp.build_preprocessing(mesh, render_config)
+    mesh = mp.apply_preprocessing(mesh, preprocessing)
     # Project to images
     projections, depths, normals, occupancies = mp.project_to_images(
         mesh, projection_config, view_angles
     )
+    assert projections.shape[-1] == 4
+    assert normals.shape[-1] == 4
+    assert depths.ndim == 3
+    assert occupancies.ndim == 3
+    assert not projections.flags.writeable
+    assert not normals.flags.writeable
     # Save the images
     os.makedirs("projections_icosahedron", exist_ok=True)
     for i, (p, d, n, o) in enumerate(zip(projections, depths, normals, occupancies)):
