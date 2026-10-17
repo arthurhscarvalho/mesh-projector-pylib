@@ -15,13 +15,16 @@ log = "0.4.27"
 colog = "1.3.0"
 
 [dependencies.mesh-projector-core]
-path = "../mesh-projector-rs/crates/core"
+git = "https://github.com/arthurhscarvalho/mesh-projector-rs.git"
+tag = "v1.0.0"
 
 [dependencies.mesh-projector-cpu]
-path = "../mesh-projector-rs/crates/cpu"
+git = "https://github.com/arthurhscarvalho/mesh-projector-rs.git"
+tag = "v1.0.0"
 
 [dependencies.mesh-projector-wgpu]
-path = "../mesh-projector-rs/crates/wgpu"
+git = "https://github.com/arthurhscarvalho/mesh-projector-rs.git"
+tag = "v1.0.0"
 
 [dependencies.pyo3]
 version = "0.24.1"
