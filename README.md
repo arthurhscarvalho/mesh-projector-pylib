@@ -12,7 +12,7 @@ The PyPI distribution is named `mesh_projector`; its Python import is `mesh_proj
 
 ## Requirements
 
-- Python 3.11 or 3.12. Although [pyproject.toml](pyproject.toml) permits Python `>=3.10,<3.13`, the current configuration module imports `enum.StrEnum`, which requires Python 3.11 or later.
+- Python 3.11 or 3.12 (`>=3.11,<3.13`), as declared in [pyproject.toml](pyproject.toml). The configuration module uses `enum.StrEnum`, which requires Python 3.11 or later.
 - NumPy, Pydantic, and the other declared runtime dependencies.
 - For source builds: a current stable Rust toolchain, Cargo, a native linker/C compiler, Git, and Maturin.
 - For GPU execution: a `wgpu`-compatible GPU adapter and drivers; Linux typically requires a working Vulkan driver stack.
@@ -29,12 +29,11 @@ In a Python 3.11 or 3.12 environment:
 python -m pip install mesh_projector
 ```
 
-A compatible wheel does not require a local Rust toolchain. To build from source, use the sibling checkouts below.
+A compatible wheel does not require a local Rust toolchain. To build from source, use the checkout instructions below.
 
 ### From source
 
 ```bash
-git clone https://github.com/arthurhscarvalho/mesh-projector-rs.git
 git clone https://github.com/arthurhscarvalho/mesh-projector-pylib.git
 cd mesh-projector-pylib
 python3.12 -m venv .venv
@@ -44,7 +43,7 @@ python -m pip install "maturin>=1.13.1,<2.0"
 python -m maturin develop --release
 ```
 
-Keep `mesh-projector-rs/` and `mesh-projector-pylib/` as sibling directories. [Cargo.toml](Cargo.toml) references `../mesh-projector-rs/crates/core`, `crates/cpu`, and `crates/wgpu`. The activation command above is for a POSIX shell. Re-run `python -m maturin develop --release` after changing the binding or its backend.
+Cargo fetches the core, CPU, and GPU crates from the public `mesh-projector-rs` Git tag `v1.0.0`, as declared in [Cargo.toml](Cargo.toml). No sibling backend checkout is required. The activation command above is for a POSIX shell. Re-run `python -m maturin develop --release` after changing the binding or updating its backend dependency.
 
 ## Usage
 

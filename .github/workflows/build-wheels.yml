@@ -1,23 +1,16 @@
-# .github/workflows/build_wheels.yml
-
 name: Build and Publish Python Wheels
 
 on:
-  # Run on pushes to the main branch for build testing
+  release:
+    types: [published]
   push:
-    branches:
-      - main
-    # Trigger publishing ONLY when a tag starting with 'v' is pushed
-    tags:
-      - 'v*'
-
-  # Run on Pull Requests targeting the main branch for build testing
+    branches: [main]
   pull_request:
-    branches:
-      - main
-
-  # Allow manual runs via the GitHub Actions UI
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build_wheels:
@@ -29,64 +22,87 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-14]
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Python binding
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
-      # Install Rust toolchain on the runner host (for macOS/Windows)
+      - name: Check release version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: python
+        run: |
+          import os
+          import tomllib
+          from pathlib import Path
+
+          project = tomllib.loads(Path("pyproject.toml").read_text())
+          version = project["project"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if tag.removeprefix("v") != version:
+              raise SystemExit(f"Release tag {tag!r} must match package version {version!r} (optionally prefixed with 'v').")
+
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Install cibuildwheel
-        run: pip install cibuildwheel
+        run: python -m pip install "cibuildwheel>=3,<4"
 
-      - name: Build wheels using cibuildwheel
+      - name: Build and test wheels
         env:
-          # === cibuildwheel configuration ===
-          CIBW_BUILD: cp310-* cp311-* cp312-*
-          CIBW_SKIP: "*-musllinux_* *_i686"
-
-          # 1. Install Rust inside the Linux container before building
-          # (We removed the '&& . "$HOME/.cargo/env"' part as it wasn't effective)
-          CIBW_BEFORE_BUILD_LINUX: curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
-
-          # 2. Set the PATH for the build environment on Linux
+          CIBW_BUILD: cp311-* cp312-*
+          CIBW_SKIP: '*-musllinux_* *_i686 *-win32'
+          CIBW_ARCHS: auto64
+          CIBW_BEFORE_ALL_LINUX: >-
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+            sh -s -- --default-toolchain stable --profile minimal -y
           CIBW_ENVIRONMENT_LINUX: 'PATH=$HOME/.cargo/bin:$PATH'
-
-        # Run cibuildwheel
-        run: cibuildwheel --output-dir wheelhouse
+          CIBW_TEST_COMMAND: >-
+            python -c "import mesh_projector as mp; assert callable(mp.project_to_images); assert callable(mp.project_to_point_cloud)"
+        run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}
-          path: ./wheelhouse/*.whl
+          path: wheelhouse/*.whl
+          if-no-files-found: error
 
   publish_wheels:
     name: Publish wheels to PyPI
     needs: build_wheels
+    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
-      - name: Download all wheels artifacts
-        uses: actions/download-artifact@v4
+      - name: Download wheels artifacts
+        uses: actions/download-artifact@v8
         with:
           pattern: wheels-*
           merge-multiple: true
           path: dist
 
-      - name: Install Twine
-        run: pip install --upgrade twine packaging>=24.2
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
 
-      - name: Publish distribution to PyPI
+      - name: Install Twine
+        run: python -m pip install --upgrade twine
+
+      - name: Check distributions
+        run: python -m twine check dist/*.whl
+
+      - name: Publish distributions to PyPI
         env:
           TWINE_USERNAME: __token__
+          # Configure this secret in the mesh-projector-pylib repository.
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          TWINE_NON_INTERACTIVE: '1'
         run: python -m twine upload --skip-existing dist/*.whl

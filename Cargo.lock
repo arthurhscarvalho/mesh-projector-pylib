@@ -763,6 +763,7 @@ dependencies = [
 [[package]]
 name = "mesh-projector-core"
 version = "1.0.0"
+source = "git+https://github.com/arthurhscarvalho/mesh-projector-rs.git?tag=v1.0.0#21d046a7d38036788c82b210f3dccdab7203a102"
 dependencies = [
  "colog",
  "image",
@@ -777,6 +778,7 @@ dependencies = [
 [[package]]
 name = "mesh-projector-cpu"
 version = "1.0.0"
+source = "git+https://github.com/arthurhscarvalho/mesh-projector-rs.git?tag=v1.0.0#21d046a7d38036788c82b210f3dccdab7203a102"
 dependencies = [
  "log",
  "mesh-projector-core",
@@ -787,6 +789,7 @@ dependencies = [
 [[package]]
 name = "mesh-projector-wgpu"
 version = "1.0.0"
+source = "git+https://github.com/arthurhscarvalho/mesh-projector-rs.git?tag=v1.0.0#21d046a7d38036788c82b210f3dccdab7203a102"
 dependencies = [
  "bytemuck",
  "log",

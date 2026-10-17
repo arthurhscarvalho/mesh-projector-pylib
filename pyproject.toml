@@ -7,7 +7,7 @@ name = "mesh_projector"
 version = "1.0.0"
 description = ""
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "numpy>=2.2.4",
     "pydantic>=2.11.7",
